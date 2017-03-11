@@ -1,0 +1,298 @@
+#!/bin/bash
+#
+# setgo - Quick directory change helper
+#
+# USAGE
+#  See usage() function below.
+#
+# FILES
+#   ~/.go
+#
+# LICENSE
+# None. This script is free, gratis, pass it around.
+#
+# WARRANTY
+# Absolutely none. If you break it you own both parts.
+# There is no guarantee this script will do anything
+# useful, correctly, or as anyone might expect.
+#
+# 08/23/1991 original on AT&T 3B2-1200
+# 09/02/1991 Added -d delete option
+# 09/09/1991 Added -f find option
+# 05/26/1992 Ported to Alpha SysV
+# 08/12/1993 Ported to Ultrix
+# 10/03/1994 Ported to HP-UX
+# 02/12/1995 Ported to Solaris
+# 08/15/1997 Ported to NCR 8105R
+# 03/13/1998 Ported to DEC UNIX
+# 01/28/2001 Ported to Redhat Linux 6.1.2
+# 02/22/2001 Added -? check
+# 07/15/2005 Added better usage information
+# 10/26/2005 Added -e edit option. EDITOR coded in this script.
+# 07/25/2007 3.0, added typing shortcut when a '.' (dot) is specified
+#            the current directory will be used instead.
+#            Added the delgo construct.
+# 08/17/2007 Fixed-up usage info
+#######
+
+EDITOR=vim
+
+version='3.1'
+
+doAdd ()
+{
+  echo "alias -- -$C='cd $D'" >> ~/.go
+}
+
+doEdit ()
+{
+  if [ ! -e ~/.go ]; then
+    echo "alias -- -.='source ~/.go'" >~/.go
+  fi
+  if [ -w ~/.go ]; then
+    $EDITOR ~/.go
+    exit
+  fi
+  echo -e "\nFAILURE : File ~/.go not found or not writable\n\n"
+  exit 1
+}
+
+doFind ()
+{
+  fgrep -- "-$C=" ~/.go >>/dev/null
+  result=$?				# 1=not found, 0=found
+}
+
+
+doDelete ()
+{
+  fgrep -v -- "-$C=" ~/.go > ~/.go-tmp
+  mv -f ~/.go-tmp ~/.go 
+}
+
+doInternals ()
+{
+  fgrep 'alias -- -.' ~/.go >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    dt=`date`
+    echo "# created by setgo ${version}, $dt" >> ~/.go
+    echo "# Maintained by setgo, DO NOT EDIT" >> ~/.go
+    echo "alias -- -.='source ~/.go;echo Go ok'" >> ~/.go
+  fi
+  fgrep 'alias -- rego' ~/.go >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    echo "alias -- rego='source ~/.go;echo Go ok'" >> ~/.go
+  fi
+  fgrep 'delgo ()' ~/.go >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    echo -e 'delgo ()\n{\n  unalias -- `setgo -dS "$@"` >/dev/null 2>&1\n  echo "Go removed"\n}' >>~/.go
+  fi
+}
+
+usage ()
+{
+  echo ''
+  echo "setgo v${version} - Quick directory change helper"
+  echo ''
+  echo 'Simple script to maintain a file of "Go" commands...aliases used to'
+  echo 'quickly change directories with a simple name.  For example, if you'
+  echo 'are currently in /etc/init.d and run the command:'
+  echo ''
+  echo '   setgo init'
+  echo ''
+  echo 'a line is added to the file ~/.go that will contain:'
+  echo ''
+  echo "  alias -- -init='cd /etc/init.d'"
+  echo ''
+  echo 'which says "add an alias called -init which, when typed at the'
+  echo 'command line, will execute the command: cd /etc/init.d".'
+  echo ''
+  echo 'The file ~/.go is maintained with a series of aliases that all'
+  echo 'have a leading - (dash). This file should be "sourced" in your'
+  echo '.bashrc, .bash_user, .profile or whatever login script file so'
+  echo 'the aliases will be included in your environment.'
+  echo '  Example:  source ~/.go  or  . ~/.go'
+  echo ''
+  echo 'The ~/.go file should also contain the ADDITIONAL COMMANDS.'
+  echo ''
+   echo 'USAGE: setgo [-d][-e][-f] name'
+  echo ''
+  echo '  Options:'
+  echo '    -d     delete name from ~/.go file.'
+  echo '           Does not unalias Go command, see ADDITIONAL COMMANDS.'
+  echo '    -e     edit the ~/.go file. EDITOR is coded in this script.'
+  echo '    -f     find all go entries containing name. If name is not specified'
+  echo '           then use the current directory name.'
+  echo '    name   logical "Go" name for the current directory. If "." (dot) is'
+  echo '           specified then the name of the current directory is used.'
+  echo ''
+  echo '  If neither -d or -f are used then a new go name is added.'
+  echo ''
+  echo '  To use a "Go" command type:  -name'
+  echo ''
+ echo '  Examples:'
+  echo '    setgo work        creates new go name: -work'
+  echo '    setgo -f          find all entries containing the current directory'
+  echo '    setgo -f work     find all go entries containing: work'
+  echo '    setgo -d work     delete go entry: -work'
+  echo ''
+  echo 'ADDITIONAL COMMANDS:'
+  echo '  These commands are automagically added:'
+  echo '    -.                re-sources the ~/.go file. REQUIRED to use new entries.'
+  echo '    rego              alias for -. (dash dot).'
+  echo '    delgo name        delete entry "name". Use "." for current directory name.'
+  echo '                      This command also does an unalias of the entry.'
+  echo ''
+  exit 1					# exit
+}
+
+result=0
+
+# get the current directory
+D=$(pwd)
+if [ -z "$D" ]; then
+  D=`pwd`
+fi
+
+#
+# validate arguments
+if [ $# -lt 1 ]; then
+  usage
+fi
+
+# check for edit option
+if [ "$1" == "-e" ]; then
+  doEdit
+  exit
+fi
+
+# check for delete option
+forceDelete=0
+noecho=0
+if [ "$1" == "-d" ]; then
+  forceDelete=1
+  shift
+fi
+if [ "$1" == "-dS" ]; then
+  forceDelete=1
+  noecho=1
+  shift
+fi
+
+# create a ~/.go file if one does not exist
+if [ ! -f ~/.go ]; then
+  echo -n '' >~/.go
+fi
+
+# make sure the other Internal commands exist
+doInternals
+
+# perform find-directory option
+if [ "$1" == "-f" ]; then
+  shift
+  if [ $# -gt 0 ]; then
+    D="$1"
+  fi
+  if [ "$D" == "." ]; then
+    D=`pwd`
+    D=`basename "$D"`
+  fi
+  echo ''
+  echo 'setgo: Findings ...'
+  fgrep -- "$D" ~/.go
+  if [ $? -eq 1 ]; then
+    echo "setgo: keyword..... $D not found"
+  fi
+  echo ''
+  exit 0					# exit
+fi
+
+if [ "$1" == "?" -o "$1" == "-h" -o "$1" == "--help" ]; then
+  usage
+fi
+
+if [ $# -gt 1 ]; then
+  echo ''
+  echo 'setgo error: keyword may not contain spaces'
+  usage
+fi
+
+# strip any leading dash (-)
+if [ "${1:0:1}" == "-" ]; then
+  C=${1:1}
+else
+  C=$1
+fi
+
+expanded=''
+if [ "$C" == "." ]; then
+  C=`pwd`
+  C=`basename "$C"`
+  expanded=' (expanded from ".")'
+fi
+
+# check the keyword again
+if [ -z "$C" ]; then
+  echo ''
+  echo 'setgo error: keyword required for current directory, '.' (dot) for the current directory'
+  usage
+fi
+
+if [ "$C" == "?" ]; then
+  usage
+fi
+
+# perform delete option
+if [ $forceDelete -eq 1 ]; then
+  doFind
+  if [ $result -eq 1 ]; then
+    if [ $noecho -eq 0 ]; then
+      echo ''
+      echo "setgo: keyword..... ${C}${expanded} not found"
+      echo ''
+    fi
+  else
+    doDelete
+    if [ $noecho -eq 0 ]; then
+      echo ''
+      echo "setgo: keyword..... ${C}${expanded} DELETED"
+      echo ''
+    fi
+  fi
+  if [ $noecho -eq 1 ]; then
+    echo "-${C}"
+  fi
+  exit 0					# exit
+fi
+
+echo ''
+echo "setgo: keyword..... $C${expanded}"
+echo "       directory... $D"
+
+# does it already exist?
+E=$( fgrep -- "-$C=" ~/.go )
+if [ $? == 0 ]; then
+  echo ''
+  echo "$C already exists as:"
+  echo -e "  $E\n"
+  read -p "Do you wish to replace it? " R
+  R=${R:0:1}
+  if [ "$R" == 'y' -o "$R" == 'Y' ]; then
+    doDelete
+    doAdd
+   else
+     echo 'cancelled'
+     echo ''
+     exit 1					# exit
+   fi
+else
+  echo "       $C is new"
+  doAdd
+fi
+
+echo ''
+echo 'Execute the command: rego or the alias -. to enable the changes.'
+echo ''
+
+unset C D E R result expanded
+
