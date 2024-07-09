@@ -33,6 +33,9 @@
 #            the current directory will be used instead.
 #            Added the delgo construct.
 # 08/17/2007 Fixed-up usage info
+# 3/18/1996 Ported to RedHat bash
+# 2/20/2004 Ported to CentOS
+# 3/23/2016 Ported to Linux Mint
 #######
 
 EDITOR=vim
